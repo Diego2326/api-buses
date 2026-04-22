@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: ${SUPABASE_DB_URL:jdbc:postgresql://aws-1-us-west-2.pooler.supabase.com:5432/postgres?sslmode=require}
+    username: ${SUPABASE_DB_USERNAME:postgres.odftsymuunuigqgvjsqb}
+    password: ${SUPABASE_DB_PASSWORD}

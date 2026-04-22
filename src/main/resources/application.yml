@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: api-buses
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://aws-1-us-west-2.pooler.supabase.com:5432/postgres?sslmode=require}
+    username: ${DB_USERNAME:postgres.odftsymuunuigqgvjsqb}
+    password: ${DB_PASSWORD:diego23buses@}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+
+app:
+  security:
+    jwt-secret: ${JWT_SECRET:change-this-development-secret-change-this-development-secret}
+    jwt-expiration-minutes: ${JWT_EXPIRATION_MINUTES:1440}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
