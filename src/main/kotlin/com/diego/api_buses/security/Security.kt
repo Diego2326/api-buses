@@ -1,10 +1,12 @@
 package com.diego.api_buses.security
 
 import com.diego.api_buses.domain.UserEntity
+import com.diego.api_buses.domain.OperationalStatus
 import com.diego.api_buses.domain.UserRole
 import com.diego.api_buses.dto.AuthUserResponse
 import com.diego.api_buses.dto.LoginRequest
 import com.diego.api_buses.dto.LoginResponse
+import com.diego.api_buses.dto.RegisterRequest
 import com.diego.api_buses.error.BusinessException
 import com.diego.api_buses.repository.UserRepository
 import jakarta.servlet.FilterChain
@@ -83,7 +85,21 @@ class AuthService(private val users: UserRepository, private val passwordEncoder
         val user = users.findByEmail(request.email) ?: throw BusinessException("Credenciales invalidas.")
         val hash = user.passwordHash ?: throw BusinessException("Credenciales invalidas.")
         if (!passwordEncoder.matches(request.password, hash)) throw BusinessException("Credenciales invalidas.")
-        return LoginResponse(jwtService.generate(user), AuthUserResponse(user.id, user.name, user.email, user.role))
+        return LoginResponse(jwtService.generate(user), AuthUserResponse(user.id, user.name, user.email, user.role, user.status))
+    }
+
+    fun register(request: RegisterRequest): LoginResponse {
+        if (users.existsByEmail(request.email)) throw BusinessException("Ya existe un usuario registrado con ese email.")
+        val user = users.save(
+            UserEntity(
+                name = request.name,
+                email = request.email,
+                passwordHash = passwordEncoder.encode(request.password),
+                role = UserRole.PASSENGER,
+                status = OperationalStatus.ACTIVE,
+            ),
+        )
+        return LoginResponse(jwtService.generate(user), AuthUserResponse(user.id, user.name, user.email, user.role, user.status))
     }
 }
 

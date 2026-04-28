@@ -8,6 +8,8 @@ import com.diego.api_buses.dto.*
 import com.diego.api_buses.security.AuthService
 import com.diego.api_buses.security.UserPrincipal
 import com.diego.api_buses.service.*
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.security.SecurityRequirements
 import jakarta.validation.Valid
 import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
@@ -29,11 +31,18 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/auth")
 class AuthController(private val auth: AuthService) {
+    @Operation(summary = "Iniciar sesion")
+    @SecurityRequirements
     @PostMapping("/login")
     fun login(@Valid @RequestBody request: LoginRequest) = auth.login(request)
 
+    @Operation(summary = "Registrar pasajero")
+    @SecurityRequirements
+    @PostMapping("/register")
+    fun register(@Valid @RequestBody request: RegisterRequest) = auth.register(request)
+
     @GetMapping("/me")
-    fun me(@AuthenticationPrincipal principal: UserPrincipal) = AuthUserResponse(principal.user.id, principal.user.name, principal.user.email, principal.user.role)
+    fun me(@AuthenticationPrincipal principal: UserPrincipal) = AuthUserResponse(principal.user.id, principal.user.name, principal.user.email, principal.user.role, principal.user.status)
 
     @PostMapping("/logout")
     fun logout() = mapOf("success" to true)
@@ -43,6 +52,7 @@ class AuthController(private val auth: AuthService) {
 @RequestMapping("/api/v1/buses")
 class BusController(private val service: BusService) {
     @GetMapping fun list(@RequestParam(required = false) search: String?, @RequestParam(required = false) status: OperationalStatus?, @RequestParam(required = false) routeId: UUID?, @PageableDefault(size = 20) pageable: Pageable) = service.list(search, status, routeId, pageable)
+    @GetMapping("/by-code/{code}") fun getByCode(@PathVariable code: String) = service.getByCode(code)
     @GetMapping("/{id}") fun get(@PathVariable id: UUID) = service.get(id)
     @PostMapping fun create(@Valid @RequestBody request: BusRequest) = service.create(request)
     @PutMapping("/{id}") fun update(@PathVariable id: UUID, @Valid @RequestBody request: BusRequest) = service.update(id, request)
@@ -86,7 +96,7 @@ class FareController(private val service: FareService) {
 class PaymentController(private val service: PaymentService) {
     @GetMapping fun list(@RequestParam(required = false) userId: UUID?, @RequestParam(required = false) busId: UUID?, @RequestParam(required = false) status: PaymentStatus?, @RequestParam(required = false) method: PaymentMethod?, @RequestParam(required = false) dateFrom: Instant?, @RequestParam(required = false) dateTo: Instant?, @PageableDefault(size = 20) pageable: Pageable) = service.list(userId, busId, status, method, dateFrom, dateTo, pageable)
     @GetMapping("/{id}") fun get(@PathVariable id: UUID) = service.get(id)
-    @PostMapping fun create(@Valid @RequestBody request: PaymentRequest) = service.create(request)
+    @PostMapping fun create(@AuthenticationPrincipal principal: UserPrincipal, @Valid @RequestBody request: PaymentRequest) = service.create(request, principal.user)
     @PostMapping("/{id}/reverse") fun reverse(@PathVariable id: UUID, @Valid @RequestBody request: ReversePaymentRequest) = service.reverse(id, request.reason)
 }
 
@@ -100,6 +110,14 @@ class UserController(private val service: UserService) {
     @PatchMapping("/{id}/status") fun status(@PathVariable id: UUID, @Valid @RequestBody request: StatusRequest) = service.updateStatus(id, request.status)
     @PatchMapping("/{id}/role") fun role(@PathVariable id: UUID, @Valid @RequestBody request: RoleRequest) = service.updateRole(id, request.role)
     @PostMapping("/{id}/reset-password") fun reset(@PathVariable id: UUID, @Valid @RequestBody request: ResetPasswordRequest) = service.resetPassword(id, request.password)
+}
+
+@RestController
+@RequestMapping("/api/v1/wallet")
+class WalletController(private val service: WalletService) {
+    @GetMapping fun wallet(@AuthenticationPrincipal principal: UserPrincipal) = service.wallet(principal.user)
+    @PostMapping("/top-ups") fun topUp(@AuthenticationPrincipal principal: UserPrincipal, @Valid @RequestBody request: WalletTopUpRequest) = service.topUp(principal.user, request)
+    @GetMapping("/transactions") fun transactions(@AuthenticationPrincipal principal: UserPrincipal, @PageableDefault(size = 20) pageable: Pageable) = service.transactions(principal.user, pageable)
 }
 
 @RestController

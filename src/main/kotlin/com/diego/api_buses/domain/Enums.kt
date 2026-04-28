@@ -27,3 +27,14 @@ enum class UserRole {
     INSPECTOR,
     PASSENGER,
 }
+
+enum class WalletTransactionType {
+    TOP_UP,
+    PAYMENT,
+    REVERSAL,
+}
+
+enum class WalletTransactionStatus {
+    COMPLETED,
+    FAILED,
+}

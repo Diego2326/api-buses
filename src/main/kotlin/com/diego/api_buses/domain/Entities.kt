@@ -219,3 +219,38 @@ class PaymentEntity(
         updatedAt = Instant.now()
     }
 }
+
+@Entity
+@Table(name = "wallet_transactions")
+class WalletTransactionEntity(
+    @Id
+    var id: UUID = UUID.randomUUID(),
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    var user: UserEntity = UserEntity(),
+    @Column(precision = 12, scale = 2)
+    var amount: BigDecimal = BigDecimal.ZERO,
+    @Enumerated(EnumType.STRING)
+    var type: WalletTransactionType = WalletTransactionType.TOP_UP,
+    @Enumerated(EnumType.STRING)
+    var status: WalletTransactionStatus = WalletTransactionStatus.COMPLETED,
+    @Enumerated(EnumType.STRING)
+    var method: PaymentMethod? = null,
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "payment_id")
+    var payment: PaymentEntity? = null,
+    var date: Instant = Instant.now(),
+    var createdAt: Instant = Instant.now(),
+    var updatedAt: Instant = Instant.now(),
+) {
+    @PrePersist
+    fun onCreate() {
+        createdAt = Instant.now()
+        updatedAt = createdAt
+    }
+
+    @PreUpdate
+    fun onUpdate() {
+        updatedAt = Instant.now()
+    }
+}

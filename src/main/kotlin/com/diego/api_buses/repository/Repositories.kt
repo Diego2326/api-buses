@@ -9,16 +9,19 @@ import com.diego.api_buses.domain.RouteStopEntity
 import com.diego.api_buses.domain.StopEntity
 import com.diego.api_buses.domain.UserEntity
 import com.diego.api_buses.domain.UserRole
+import com.diego.api_buses.domain.WalletTransactionEntity
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
 
 interface UserRepository : JpaRepository<UserEntity, UUID> {
     fun findByEmail(email: String): UserEntity?
+    fun existsByEmail(email: String): Boolean
 
     @Query(
         """
@@ -41,6 +44,8 @@ interface BusRepository : JpaRepository<BusEntity, UUID> {
         """,
     )
     fun search(search: String?, status: OperationalStatus?, routeId: UUID?, pageable: Pageable): Page<BusEntity>
+
+    fun findByCodeIgnoreCase(code: String): BusEntity?
 
     fun countByStatus(status: OperationalStatus): Long
     fun countByRouteId(routeId: UUID): Long
@@ -110,5 +115,27 @@ interface PaymentRepository : JpaRepository<PaymentEntity, UUID> {
     fun countByDateBetween(dateFrom: Instant, dateTo: Instant): Long
 
     @Query("select coalesce(sum(p.amount), 0) from PaymentEntity p where p.status = com.diego.api_buses.domain.PaymentStatus.COMPLETED and p.date between :dateFrom and :dateTo")
-    fun revenueBetween(dateFrom: Instant, dateTo: Instant): java.math.BigDecimal
+    fun revenueBetween(dateFrom: Instant, dateTo: Instant): BigDecimal
+}
+
+interface WalletTransactionRepository : JpaRepository<WalletTransactionEntity, UUID> {
+    @Query(
+        """
+        select coalesce(sum(
+            case
+                when t.type = com.diego.api_buses.domain.WalletTransactionType.TOP_UP then t.amount
+                when t.type = com.diego.api_buses.domain.WalletTransactionType.REVERSAL then t.amount
+                when t.type = com.diego.api_buses.domain.WalletTransactionType.PAYMENT then -t.amount
+                else 0
+            end
+        ), 0)
+        from WalletTransactionEntity t
+        where t.user.id = :userId
+          and t.status = com.diego.api_buses.domain.WalletTransactionStatus.COMPLETED
+        """,
+    )
+    fun balanceByUserId(@Param("userId") userId: UUID): BigDecimal
+
+    @Query("select t from WalletTransactionEntity t where t.user.id = :userId order by t.date desc")
+    fun findByUserId(@Param("userId") userId: UUID, pageable: Pageable): Page<WalletTransactionEntity>
 }

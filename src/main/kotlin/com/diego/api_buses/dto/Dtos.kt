@@ -4,11 +4,12 @@ import com.diego.api_buses.domain.OperationalStatus
 import com.diego.api_buses.domain.PaymentMethod
 import com.diego.api_buses.domain.PaymentStatus
 import com.diego.api_buses.domain.UserRole
+import com.diego.api_buses.domain.WalletTransactionStatus
+import com.diego.api_buses.domain.WalletTransactionType
 import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
 import java.math.BigDecimal
@@ -21,10 +22,11 @@ data class ErrorDetail(val field: String, val message: String)
 data class ErrorResponse(val timestamp: Instant, val status: Int, val error: String, val message: String, val path: String, val details: List<ErrorDetail> = emptyList())
 
 data class LoginRequest(@field:Email val email: String, @field:NotBlank val password: String)
-data class AuthUserResponse(val id: UUID, val name: String, val email: String, val role: UserRole)
+data class RegisterRequest(@field:NotBlank val name: String, @field:Email val email: String, @field:Size(min = 6) val password: String)
+data class AuthUserResponse(val id: UUID, val name: String, val email: String, val role: UserRole, val status: OperationalStatus)
 data class LoginResponse(val token: String, val user: AuthUserResponse)
 
-data class RouteSummaryResponse(val id: UUID, val name: String)
+data class RouteSummaryResponse(val id: UUID, val name: String, val origin: String, val destination: String)
 data class BusResponse(val id: UUID, val plate: String, val code: String, val capacity: Int, val route: RouteSummaryResponse?, val status: OperationalStatus)
 data class BusRequest(@field:NotBlank val plate: String, @field:NotBlank val code: String, @field:Min(1) val capacity: Int, val routeId: UUID?, @field:NotNull val status: OperationalStatus)
 data class StatusRequest(@field:NotNull val status: OperationalStatus)
@@ -41,7 +43,21 @@ data class RouteRequest(@field:NotBlank val name: String, @field:Size(min = 2, m
 data class FareResponse(val id: UUID, val name: String, val amount: BigDecimal, val validFrom: LocalDate, val validTo: LocalDate, val status: OperationalStatus)
 data class FareRequest(@field:NotBlank val name: String, @field:DecimalMin("0.01") val amount: BigDecimal, @field:NotNull val validFrom: LocalDate, @field:NotNull val validTo: LocalDate, @field:NotNull val status: OperationalStatus)
 
-data class PaymentResponse(val id: UUID, val user: String, val bus: String, val amount: BigDecimal, val date: Instant, val status: PaymentStatus, val method: PaymentMethod)
+data class PaymentResponse(
+    val id: UUID,
+    val userId: UUID,
+    val user: String,
+    val busId: UUID,
+    val bus: String,
+    val busPlate: String,
+    val routeName: String?,
+    val routeOrigin: String?,
+    val routeDestination: String?,
+    val amount: BigDecimal,
+    val date: Instant,
+    val status: PaymentStatus,
+    val method: PaymentMethod,
+)
 data class PaymentRequest(@field:NotNull val userId: UUID, @field:NotNull val busId: UUID, @field:DecimalMin("0.01") val amount: BigDecimal, @field:NotNull val method: PaymentMethod, val externalReference: String?)
 data class ReversePaymentRequest(@field:NotBlank val reason: String)
 
@@ -60,3 +76,8 @@ data class RouteMetricResponse(val route: String, val stops: Long, val assignedB
 data class BusMetricResponse(val bus: String, val payments: Long, val revenue: BigDecimal)
 data class ReportScheduleRequest(@field:NotBlank val name: String, @field:NotBlank val type: String, @field:NotBlank val frequency: String, @field:Email val recipientEmail: String)
 data class ReportScheduleResponse(val id: UUID, val name: String, val type: String, val frequency: String, val recipientEmail: String, val status: String)
+
+data class WalletResponse(val balance: BigDecimal, val currency: String = "GTQ")
+data class WalletTopUpRequest(@field:DecimalMin("0.01") val amount: BigDecimal, @field:NotNull val method: PaymentMethod)
+data class WalletTopUpResponse(val id: UUID, val amount: BigDecimal, val status: WalletTransactionStatus, val date: Instant)
+data class WalletTransactionResponse(val id: UUID, val type: WalletTransactionType, val amount: BigDecimal, val date: Instant, val status: WalletTransactionStatus)

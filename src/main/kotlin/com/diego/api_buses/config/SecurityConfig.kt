@@ -29,7 +29,9 @@ class SecurityConfig {
             .cors { }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
-                it.requestMatchers("/api/v1/auth/login", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                it.requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").authenticated()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/payments", "/api/v1/wallet/top-ups").hasAnyRole("ADMIN", "OPERATOR", "PASSENGER")
                     .requestMatchers(HttpMethod.GET, "/api/v1/**").hasAnyRole("ADMIN", "OPERATOR", "INSPECTOR", "PASSENGER")
                     .requestMatchers("/api/v1/**").hasAnyRole("ADMIN", "OPERATOR")
                     .anyRequest().authenticated()

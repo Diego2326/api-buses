@@ -11,6 +11,9 @@ import com.diego.api_buses.domain.RouteStopEntity
 import com.diego.api_buses.domain.StopEntity
 import com.diego.api_buses.domain.UserEntity
 import com.diego.api_buses.domain.UserRole
+import com.diego.api_buses.domain.WalletTransactionEntity
+import com.diego.api_buses.domain.WalletTransactionStatus
+import com.diego.api_buses.domain.WalletTransactionType
 import com.diego.api_buses.dto.*
 import com.diego.api_buses.error.BusinessException
 import com.diego.api_buses.error.NotFoundException
@@ -50,6 +53,7 @@ class GeometryService {
 class BusService(private val buses: BusRepository, private val routes: RouteRepository) {
     fun list(search: String?, status: OperationalStatus?, routeId: UUID?, pageable: Pageable) = buses.search(search, status, routeId, pageable).toPageResponse(::toResponse)
     fun get(id: UUID) = toResponse(buses.findById(id).orNotFound("Bus no encontrado."))
+    fun getByCode(code: String) = toResponse(buses.findByCodeIgnoreCase(code) ?: throw NotFoundException("Bus no encontrado."))
 
     @Transactional
     fun create(request: BusRequest) = toResponse(buses.save(BusEntity(plate = request.plate, code = request.code, capacity = request.capacity, route = resolveRoute(request.routeId), status = request.status)))
@@ -85,7 +89,14 @@ class BusService(private val buses: BusRepository, private val routes: RouteRepo
         return route
     }
 
-    private fun toResponse(bus: BusEntity) = BusResponse(bus.id, bus.plate, bus.code, bus.capacity, bus.route?.let { RouteSummaryResponse(it.id, it.name) }, bus.status)
+    private fun toResponse(bus: BusEntity) = BusResponse(
+        bus.id,
+        bus.plate,
+        bus.code,
+        bus.capacity,
+        bus.route?.let { RouteSummaryResponse(it.id, it.name, it.originStop.name, it.destinationStop.name) },
+        bus.status,
+    )
 }
 
 @Service
@@ -204,15 +215,44 @@ class FareService(private val fares: FareRepository) {
 }
 
 @Service
-class PaymentService(private val payments: PaymentRepository, private val users: UserRepository, private val buses: BusRepository) {
+class PaymentService(
+    private val payments: PaymentRepository,
+    private val users: UserRepository,
+    private val buses: BusRepository,
+    private val walletTransactions: WalletTransactionRepository,
+) {
     fun list(userId: UUID?, busId: UUID?, status: PaymentStatus?, method: PaymentMethod?, dateFrom: Instant?, dateTo: Instant?, pageable: Pageable) = payments.search(userId, busId, status, method, dateFrom, dateTo, pageable).toPageResponse(::toResponse)
     fun get(id: UUID) = toResponse(payments.findById(id).orNotFound("Pago no encontrado."))
 
     @Transactional
-    fun create(request: PaymentRequest): PaymentResponse {
-        val user = users.findById(request.userId).orNotFound("Usuario no encontrado.")
+    fun create(request: PaymentRequest, actor: UserEntity): PaymentResponse {
+        val user = resolvePaymentUser(request.userId, actor)
         val bus = buses.findById(request.busId).orNotFound("Bus no encontrado.")
-        return toResponse(payments.save(PaymentEntity(user = user, bus = bus, amount = request.amount, method = request.method, externalReference = request.externalReference, status = PaymentStatus.COMPLETED)))
+        if (request.method == PaymentMethod.WALLET) {
+            ensureWalletOwner(user)
+            val balance = walletTransactions.balanceByUserId(user.id)
+            if (balance < request.amount) throw BusinessException("Saldo insuficiente en billetera.")
+        }
+
+        val payment = payments.save(
+            PaymentEntity(user = user, bus = bus, amount = request.amount, method = request.method, externalReference = request.externalReference, status = PaymentStatus.COMPLETED),
+        )
+
+        if (request.method == PaymentMethod.WALLET) {
+            walletTransactions.save(
+                WalletTransactionEntity(
+                    user = user,
+                    amount = request.amount,
+                    type = WalletTransactionType.PAYMENT,
+                    status = WalletTransactionStatus.COMPLETED,
+                    method = request.method,
+                    payment = payment,
+                    date = payment.date,
+                ),
+            )
+        }
+
+        return toResponse(payment)
     }
 
     @Transactional
@@ -221,10 +261,49 @@ class PaymentService(private val payments: PaymentRepository, private val users:
         if (payment.status != PaymentStatus.COMPLETED) throw BusinessException("Solo se pueden revertir pagos completados.")
         payment.status = PaymentStatus.REVERSED
         payment.reversalReason = reason
+        if (payment.method == PaymentMethod.WALLET) {
+            ensureWalletOwner(payment.user)
+            walletTransactions.save(
+                WalletTransactionEntity(
+                    user = payment.user,
+                    amount = payment.amount,
+                    type = WalletTransactionType.REVERSAL,
+                    status = WalletTransactionStatus.COMPLETED,
+                    method = payment.method,
+                    payment = payment,
+                    date = Instant.now(),
+                ),
+            )
+        }
         return toResponse(payment)
     }
 
-    fun toResponse(payment: PaymentEntity) = PaymentResponse(payment.id, payment.user.name, payment.bus.code, payment.amount, payment.date, payment.status, payment.method)
+    fun toResponse(payment: PaymentEntity) = PaymentResponse(
+        id = payment.id,
+        userId = payment.user.id,
+        user = payment.user.name,
+        busId = payment.bus.id,
+        bus = payment.bus.code,
+        busPlate = payment.bus.plate,
+        routeName = payment.bus.route?.name,
+        routeOrigin = payment.bus.route?.originStop?.name,
+        routeDestination = payment.bus.route?.destinationStop?.name,
+        amount = payment.amount,
+        date = payment.date,
+        status = payment.status,
+        method = payment.method,
+    )
+
+    private fun resolvePaymentUser(userId: UUID, actor: UserEntity): UserEntity {
+        if (actor.role == UserRole.PASSENGER && actor.id != userId) {
+            throw BusinessException("No puedes registrar pagos para otro usuario.")
+        }
+        return users.findById(userId).orNotFound("Usuario no encontrado.")
+    }
+
+    private fun ensureWalletOwner(user: UserEntity) {
+        if (user.role != UserRole.PASSENGER) throw BusinessException("La billetera solo aplica para usuarios pasajeros.")
+    }
 }
 
 @Service
@@ -248,6 +327,43 @@ class UserService(private val users: UserRepository, private val passwordEncoder
         val user = users.findById(id).orNotFound("Usuario no encontrado."); user.passwordHash = passwordEncoder.encode(password); return toResponse(user)
     }
     fun toResponse(user: UserEntity) = UserResponse(user.id, user.name, user.email, user.role, user.status)
+}
+
+@Service
+class WalletService(private val users: UserRepository, private val walletTransactions: WalletTransactionRepository) {
+    fun wallet(principal: UserEntity): WalletResponse {
+        val user = resolvePassenger(principal.id)
+        return WalletResponse(balance = walletTransactions.balanceByUserId(user.id))
+    }
+
+    @Transactional
+    fun topUp(principal: UserEntity, request: WalletTopUpRequest): WalletTopUpResponse {
+        val user = resolvePassenger(principal.id)
+        if (request.method == PaymentMethod.WALLET) throw BusinessException("No se puede recargar la billetera usando el mismo metodo WALLET.")
+        val transaction = walletTransactions.save(
+            WalletTransactionEntity(
+                user = user,
+                amount = request.amount,
+                type = WalletTransactionType.TOP_UP,
+                status = WalletTransactionStatus.COMPLETED,
+                method = request.method,
+                date = Instant.now(),
+            ),
+        )
+        return WalletTopUpResponse(transaction.id, transaction.amount, transaction.status, transaction.date)
+    }
+
+    fun transactions(principal: UserEntity, pageable: Pageable) =
+        walletTransactions.findByUserId(resolvePassenger(principal.id).id, pageable).toPageResponse(::toResponse)
+
+    private fun toResponse(transaction: WalletTransactionEntity) =
+        WalletTransactionResponse(transaction.id, transaction.type, transaction.amount, transaction.date, transaction.status)
+
+    private fun resolvePassenger(userId: UUID): UserEntity {
+        val user = users.findById(userId).orNotFound("Usuario no encontrado.")
+        if (user.role != UserRole.PASSENGER) throw BusinessException("La billetera solo esta disponible para pasajeros.")
+        return user
+    }
 }
 
 @Service
@@ -276,7 +392,24 @@ class DashboardService(private val buses: BusRepository, private val routes: Rou
 @Service
 class ReportService(private val buses: BusRepository, private val routes: RouteRepository, private val stops: StopRepository, private val routeStops: RouteStopRepository, private val payments: PaymentRepository) {
     fun summary(dateFrom: Instant, dateTo: Instant) = ReportSummaryResponse(buses.countByStatus(OperationalStatus.ACTIVE), routes.count(), stops.count(), payments.countByDateBetween(dateFrom, dateTo), payments.revenueBetween(dateFrom, dateTo))
-    fun payments(dateFrom: Instant?, dateTo: Instant?, method: PaymentMethod?, status: PaymentStatus?, pageable: Pageable) = payments.search(null, null, status, method, dateFrom, dateTo, pageable).toPageResponse { PaymentResponse(it.id, it.user.name, it.bus.code, it.amount, it.date, it.status, it.method) }
+    fun payments(dateFrom: Instant?, dateTo: Instant?, method: PaymentMethod?, status: PaymentStatus?, pageable: Pageable) =
+        payments.search(null, null, status, method, dateFrom, dateTo, pageable).toPageResponse {
+            PaymentResponse(
+                id = it.id,
+                userId = it.user.id,
+                user = it.user.name,
+                busId = it.bus.id,
+                bus = it.bus.code,
+                busPlate = it.bus.plate,
+                routeName = it.bus.route?.name,
+                routeOrigin = it.bus.route?.originStop?.name,
+                routeDestination = it.bus.route?.destinationStop?.name,
+                amount = it.amount,
+                date = it.date,
+                status = it.status,
+                method = it.method,
+            )
+        }
     fun routes(): List<RouteMetricResponse> {
         val completedPayments = payments.findAll().filter { it.status == PaymentStatus.COMPLETED }
         return routes.findAll().map { route ->
