@@ -9,8 +9,10 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.math.BigDecimal
@@ -113,6 +115,18 @@ class MobileApiIntegrationTests {
             .andExpect(jsonPath("$.content[0].amount").value(4.0))
             .andExpect(jsonPath("$.content[1].type").value("TOP_UP"))
             .andExpect(jsonPath("$.content[1].amount").value(20.0))
+    }
+
+    @Test
+    fun `allows cors preflight for auth register from local frontend`() {
+        mockMvc.perform(
+            options("/api/v1/auth/register")
+                .header("Origin", "http://localhost:8081")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "content-type"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:8081"))
     }
 
     private fun registerPassenger(email: String): Pair<String, String> {

@@ -3,6 +3,7 @@ package com.diego.api_buses.config
 import com.diego.api_buses.security.AppUserDetailsService
 import com.diego.api_buses.security.JwtAuthenticationFilter
 import com.diego.api_buses.security.JwtService
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
@@ -19,7 +20,10 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 
 @Configuration
 @EnableMethodSecurity
-class SecurityConfig {
+class SecurityConfig(
+    @Value("\${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,http://127.0.0.1:8081}")
+    private val allowedOrigins: String,
+) {
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()
 
@@ -29,7 +33,8 @@ class SecurityConfig {
             .cors { }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
-                it.requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                it.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                    .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").authenticated()
                     .requestMatchers(HttpMethod.POST, "/api/v1/payments", "/api/v1/wallet/top-ups").hasAnyRole("ADMIN", "OPERATOR", "PASSENGER")
                     .requestMatchers(HttpMethod.GET, "/api/v1/**").hasAnyRole("ADMIN", "OPERATOR", "INSPECTOR", "PASSENGER")
@@ -42,9 +47,10 @@ class SecurityConfig {
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration()
-        configuration.allowedOrigins = listOf("http://localhost:5173", "http://127.0.0.1:5173")
+        configuration.allowedOrigins = allowedOrigins.split(",").map(String::trim).filter(String::isNotEmpty)
         configuration.allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-        configuration.allowedHeaders = listOf("Authorization", "Content-Type")
+        configuration.allowedHeaders = listOf("*")
+        configuration.maxAge = 3600
         val source = UrlBasedCorsConfigurationSource()
         source.registerCorsConfiguration("/**", configuration)
         return source
