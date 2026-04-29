@@ -251,6 +251,7 @@ Respuesta:
 ### `GET /buses/by-code/{code}`
 
 Busqueda exacta por codigo. Puede servir para flujos de soporte o caja.
+Si frontend genera el QR, el valor recomendado para codificar es `bus.code`.
 
 ### `GET /buses/{id}`
 

@@ -182,6 +182,7 @@ El resumen de ruta ya viene enriquecido:
 ### `GET /buses/by-code/{code}`
 
 Lookup directo por codigo exacto.
+Si frontend genera el QR, el valor recomendado para codificar es `bus.code`.
 
 ### `GET /buses/{id}`
 
