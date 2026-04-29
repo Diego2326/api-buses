@@ -14,6 +14,7 @@ import jakarta.validation.Valid
 import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -58,6 +59,7 @@ class BusController(private val service: BusService) {
     @PutMapping("/{id}") fun update(@PathVariable id: UUID, @Valid @RequestBody request: BusRequest) = service.update(id, request)
     @PatchMapping("/{id}/status") fun status(@PathVariable id: UUID, @Valid @RequestBody request: StatusRequest) = service.updateStatus(id, request.status)
     @PatchMapping("/{id}/route") fun route(@PathVariable id: UUID, @RequestBody request: AssignRouteRequest) = service.assignRoute(id, request.routeId)
+    @DeleteMapping("/{id}") fun delete(@PathVariable id: UUID) = service.delete(id)
 }
 
 @RestController
@@ -68,6 +70,7 @@ class StopController(private val service: StopService) {
     @PostMapping fun create(@Valid @RequestBody request: StopRequest) = service.create(request)
     @PutMapping("/{id}") fun update(@PathVariable id: UUID, @Valid @RequestBody request: StopRequest) = service.update(id, request)
     @PatchMapping("/{id}/status") fun status(@PathVariable id: UUID, @Valid @RequestBody request: StatusRequest) = service.updateStatus(id, request.status)
+    @DeleteMapping("/{id}") fun delete(@PathVariable id: UUID) = service.delete(id)
 }
 
 @RestController
@@ -79,6 +82,7 @@ class RouteController(private val service: RouteService) {
     @PutMapping("/{id}") fun update(@PathVariable id: UUID, @Valid @RequestBody request: RouteRequest) = service.update(id, request)
     @PatchMapping("/{id}/status") fun status(@PathVariable id: UUID, @Valid @RequestBody request: StatusRequest) = service.updateStatus(id, request.status)
     @PostMapping("/{id}/recalculate-geometry") fun recalculate(@PathVariable id: UUID) = service.recalculateGeometry(id)
+    @DeleteMapping("/{id}") fun delete(@PathVariable id: UUID) = service.delete(id)
 }
 
 @RestController
@@ -89,6 +93,7 @@ class FareController(private val service: FareService) {
     @PostMapping fun create(@Valid @RequestBody request: FareRequest) = service.create(request)
     @PutMapping("/{id}") fun update(@PathVariable id: UUID, @Valid @RequestBody request: FareRequest) = service.update(id, request)
     @PatchMapping("/{id}/status") fun status(@PathVariable id: UUID, @Valid @RequestBody request: StatusRequest) = service.updateStatus(id, request.status)
+    @DeleteMapping("/{id}") fun delete(@PathVariable id: UUID) = service.delete(id)
 }
 
 @RestController
@@ -97,7 +102,9 @@ class PaymentController(private val service: PaymentService) {
     @GetMapping fun list(@RequestParam(required = false) userId: UUID?, @RequestParam(required = false) busId: UUID?, @RequestParam(required = false) status: PaymentStatus?, @RequestParam(required = false) method: PaymentMethod?, @RequestParam(required = false) dateFrom: Instant?, @RequestParam(required = false) dateTo: Instant?, @PageableDefault(size = 20) pageable: Pageable) = service.list(userId, busId, status, method, dateFrom, dateTo, pageable)
     @GetMapping("/{id}") fun get(@PathVariable id: UUID) = service.get(id)
     @PostMapping fun create(@AuthenticationPrincipal principal: UserPrincipal, @Valid @RequestBody request: PaymentRequest) = service.create(request, principal.user)
+    @PutMapping("/{id}") fun update(@PathVariable id: UUID, @Valid @RequestBody request: PaymentUpdateRequest) = service.update(id, request)
     @PostMapping("/{id}/reverse") fun reverse(@PathVariable id: UUID, @Valid @RequestBody request: ReversePaymentRequest) = service.reverse(id, request.reason)
+    @DeleteMapping("/{id}") fun delete(@PathVariable id: UUID) = mapOf("success" to true).also { service.delete(id) }
 }
 
 @RestController
@@ -110,6 +117,7 @@ class UserController(private val service: UserService) {
     @PatchMapping("/{id}/status") fun status(@PathVariable id: UUID, @Valid @RequestBody request: StatusRequest) = service.updateStatus(id, request.status)
     @PatchMapping("/{id}/role") fun role(@PathVariable id: UUID, @Valid @RequestBody request: RoleRequest) = service.updateRole(id, request.role)
     @PostMapping("/{id}/reset-password") fun reset(@PathVariable id: UUID, @Valid @RequestBody request: ResetPasswordRequest) = service.resetPassword(id, request.password)
+    @DeleteMapping("/{id}") fun delete(@PathVariable id: UUID) = service.delete(id)
 }
 
 @RestController

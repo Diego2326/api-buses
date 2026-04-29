@@ -138,4 +138,6 @@ interface WalletTransactionRepository : JpaRepository<WalletTransactionEntity, U
 
     @Query("select t from WalletTransactionEntity t where t.user.id = :userId order by t.date desc")
     fun findByUserId(@Param("userId") userId: UUID, pageable: Pageable): Page<WalletTransactionEntity>
+
+    fun existsByPaymentId(paymentId: UUID): Boolean
 }

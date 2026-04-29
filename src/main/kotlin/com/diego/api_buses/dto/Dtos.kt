@@ -59,6 +59,15 @@ data class PaymentResponse(
     val method: PaymentMethod,
 )
 data class PaymentRequest(@field:NotNull val userId: UUID, @field:NotNull val busId: UUID, @field:DecimalMin("0.01") val amount: BigDecimal, @field:NotNull val method: PaymentMethod, val externalReference: String?)
+data class PaymentUpdateRequest(
+    @field:NotNull val userId: UUID,
+    @field:NotNull val busId: UUID,
+    @field:DecimalMin("0.01") val amount: BigDecimal,
+    @field:NotNull val method: PaymentMethod,
+    @field:NotNull val status: PaymentStatus,
+    @field:NotNull val date: Instant,
+    val externalReference: String?,
+)
 data class ReversePaymentRequest(@field:NotBlank val reason: String)
 
 data class UserResponse(val id: UUID, val name: String, val email: String, val role: UserRole, val status: OperationalStatus)

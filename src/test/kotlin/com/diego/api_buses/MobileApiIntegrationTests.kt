@@ -9,13 +9,16 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.math.BigDecimal
+import java.time.Instant
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -38,6 +41,76 @@ class MobileApiIntegrationTests {
             .andExpect(jsonPath("$.route.name").value("Ruta 12 Centro"))
             .andExpect(jsonPath("$.route.origin").value("Terminal Oriente"))
             .andExpect(jsonPath("$.route.destination").value("Parque Central"))
+    }
+
+    @Test
+    fun `lists stops without search filter`() {
+        val token = registerPassenger("stops.mobile@buses.gt").first
+
+        mockMvc.perform(
+            get("/api/v1/stops")
+                .header("Authorization", "Bearer $token"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content[0].code").exists())
+            .andExpect(jsonPath("$.totalElements").value(8))
+    }
+
+    @Test
+    fun `soft deletes stop through admin endpoint`() {
+        val token = loginAdmin()
+
+        mockMvc.perform(
+            delete("/api/v1/stops/10000000-0000-0000-0000-000000000001")
+                .header("Authorization", "Bearer $token"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.id").value("10000000-0000-0000-0000-000000000001"))
+            .andExpect(jsonPath("$.status").value("INACTIVE"))
+    }
+
+    @Test
+    fun `updates and deletes non wallet payment administratively`() {
+        val token = loginAdmin()
+        val updatedDate = Instant.parse("2026-04-29T12:00:00Z")
+
+        mockMvc.perform(
+            put("/api/v1/payments/60000000-0000-0000-0000-000000000001")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "userId": "00000000-0000-0000-0000-000000000002",
+                      "busId": "40000000-0000-0000-0000-000000000118",
+                      "amount": 5.50,
+                      "method": "CASH",
+                      "status": "FAILED",
+                      "date": "$updatedDate",
+                      "externalReference": "admin-fix-001"
+                    }
+                    """.trimIndent(),
+                ),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.id").value("60000000-0000-0000-0000-000000000001"))
+            .andExpect(jsonPath("$.bus").value("BUS-118"))
+            .andExpect(jsonPath("$.amount").value(5.5))
+            .andExpect(jsonPath("$.status").value("FAILED"))
+            .andExpect(jsonPath("$.method").value("CASH"))
+
+        mockMvc.perform(
+            delete("/api/v1/payments/60000000-0000-0000-0000-000000000001")
+                .header("Authorization", "Bearer $token"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.success").value(true))
+
+        mockMvc.perform(
+            get("/api/v1/payments/60000000-0000-0000-0000-000000000001")
+                .header("Authorization", "Bearer $token"),
+        )
+            .andExpect(status().isNotFound)
     }
 
     @Test
@@ -150,6 +223,25 @@ class MobileApiIntegrationTests {
 
         val body = json(result.response.contentAsString)
         return body["token"].asText() to body["user"]["id"].asText()
+    }
+
+    private fun loginAdmin(): String {
+        val result = mockMvc.perform(
+            post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "email": "admin@buses.gt",
+                      "password": "admin123"
+                    }
+                    """.trimIndent(),
+                ),
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+
+        return json(result.response.contentAsString)["token"].asText()
     }
 
     private fun json(content: String): JsonNode = objectMapper.readTree(content)

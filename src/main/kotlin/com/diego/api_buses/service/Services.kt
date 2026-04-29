@@ -32,6 +32,7 @@ import java.util.UUID
 fun <T : Any, R> Page<T>.toPageResponse(mapper: (T) -> R) = PageResponse(content.map(mapper), number, size, totalElements, totalPages)
 
 private fun <T> java.util.Optional<T>.orNotFound(message: String): T = orElseThrow { NotFoundException(message) }
+private fun normalizeSearch(search: String?): String = search?.trim()?.takeIf { it.isNotEmpty() } ?: ""
 
 @Service
 class GeometryService {
@@ -51,7 +52,8 @@ class GeometryService {
 
 @Service
 class BusService(private val buses: BusRepository, private val routes: RouteRepository) {
-    fun list(search: String?, status: OperationalStatus?, routeId: UUID?, pageable: Pageable) = buses.search(search, status, routeId, pageable).toPageResponse(::toResponse)
+    fun list(search: String?, status: OperationalStatus?, routeId: UUID?, pageable: Pageable) =
+        buses.search(normalizeSearch(search), status, routeId, pageable).toPageResponse(::toResponse)
     fun get(id: UUID) = toResponse(buses.findById(id).orNotFound("Bus no encontrado."))
     fun getByCode(code: String) = toResponse(buses.findByCodeIgnoreCase(code) ?: throw NotFoundException("Bus no encontrado."))
 
@@ -83,6 +85,13 @@ class BusService(private val buses: BusRepository, private val routes: RouteRepo
         return toResponse(bus)
     }
 
+    @Transactional
+    fun delete(id: UUID): BusResponse {
+        val bus = buses.findById(id).orNotFound("Bus no encontrado.")
+        bus.status = OperationalStatus.INACTIVE
+        return toResponse(bus)
+    }
+
     private fun resolveRoute(routeId: UUID?): RouteEntity? {
         val route = routeId?.let { routes.findById(it).orNotFound("Ruta no encontrada.") }
         if (route?.status == OperationalStatus.SUSPENDED) throw BusinessException("No se puede asignar un bus a una ruta suspendida.")
@@ -101,7 +110,8 @@ class BusService(private val buses: BusRepository, private val routes: RouteRepo
 
 @Service
 class StopService(private val stops: StopRepository) {
-    fun list(search: String?, status: OperationalStatus?, pageable: Pageable) = stops.search(search, status, pageable).toPageResponse(::toResponse)
+    fun list(search: String?, status: OperationalStatus?, pageable: Pageable) =
+        stops.search(normalizeSearch(search), status, pageable).toPageResponse(::toResponse)
     fun get(id: UUID) = toResponse(stops.findById(id).orNotFound("Parada no encontrada."))
 
     @Transactional
@@ -126,12 +136,20 @@ class StopService(private val stops: StopRepository) {
         return toResponse(stop)
     }
 
+    @Transactional
+    fun delete(id: UUID): StopResponse {
+        val stop = stops.findById(id).orNotFound("Parada no encontrada.")
+        stop.status = OperationalStatus.INACTIVE
+        return toResponse(stop)
+    }
+
     fun toResponse(stop: StopEntity) = StopResponse(stop.id, stop.code, stop.name, stop.address, listOf(stop.latitude, stop.longitude), stop.status)
 }
 
 @Service
 class RouteService(private val routes: RouteRepository, private val stops: StopRepository, private val routeStops: RouteStopRepository, private val geometry: GeometryService) {
-    fun list(search: String?, status: OperationalStatus?, pageable: Pageable) = routes.search(search, status, pageable).toPageResponse { toResponse(it, includeGeometry = false) }
+    fun list(search: String?, status: OperationalStatus?, pageable: Pageable) =
+        routes.search(normalizeSearch(search), status, pageable).toPageResponse { toResponse(it, includeGeometry = false) }
     fun get(id: UUID) = toResponse(routes.findById(id).orNotFound("Ruta no encontrada."), includeGeometry = true)
 
     @Transactional
@@ -171,6 +189,13 @@ class RouteService(private val routes: RouteRepository, private val stops: StopR
         return toResponse(route, includeGeometry = true)
     }
 
+    @Transactional
+    fun delete(id: UUID): RouteResponse {
+        val route = routes.findById(id).orNotFound("Ruta no encontrada.")
+        route.status = OperationalStatus.INACTIVE
+        return toResponse(route, includeGeometry = true)
+    }
+
     fun toResponse(route: RouteEntity, includeGeometry: Boolean): RouteResponse {
         val ordered = routeStops.findByRouteIdOrderByStopOrderAsc(route.id)
         return RouteResponse(
@@ -198,7 +223,8 @@ class RouteService(private val routes: RouteRepository, private val stops: StopR
 
 @Service
 class FareService(private val fares: FareRepository) {
-    fun list(search: String?, status: OperationalStatus?, pageable: Pageable) = fares.search(search, status, pageable).toPageResponse(::toResponse)
+    fun list(search: String?, status: OperationalStatus?, pageable: Pageable) =
+        fares.search(normalizeSearch(search), status, pageable).toPageResponse(::toResponse)
     fun get(id: UUID) = toResponse(fares.findById(id).orNotFound("Tarifa no encontrada."))
     @Transactional fun create(request: FareRequest) = toResponse(fares.save(FareEntity(name = request.name, amount = request.amount, validFrom = request.validFrom, validTo = request.validTo, status = request.status)))
     @Transactional fun update(id: UUID, request: FareRequest): FareResponse {
@@ -209,6 +235,11 @@ class FareService(private val fares: FareRepository) {
     @Transactional fun updateStatus(id: UUID, status: OperationalStatus): FareResponse {
         val fare = fares.findById(id).orNotFound("Tarifa no encontrada.")
         fare.status = status
+        return toResponse(fare)
+    }
+    @Transactional fun delete(id: UUID): FareResponse {
+        val fare = fares.findById(id).orNotFound("Tarifa no encontrada.")
+        fare.status = OperationalStatus.INACTIVE
         return toResponse(fare)
     }
     private fun toResponse(fare: FareEntity) = FareResponse(fare.id, fare.name, fare.amount, fare.validFrom, fare.validTo, fare.status)
@@ -256,6 +287,26 @@ class PaymentService(
     }
 
     @Transactional
+    fun update(id: UUID, request: PaymentUpdateRequest): PaymentResponse {
+        val payment = payments.findById(id).orNotFound("Pago no encontrado.")
+        if (payment.method == PaymentMethod.WALLET || request.method == PaymentMethod.WALLET || walletTransactions.existsByPaymentId(id)) {
+            throw BusinessException("Los pagos con billetera no se pueden editar administrativamente. Usa la reversa y crea un nuevo pago.")
+        }
+        if (request.status == PaymentStatus.REVERSED) {
+            throw BusinessException("Para marcar un pago como revertido usa el endpoint de reversa.")
+        }
+
+        payment.user = users.findById(request.userId).orNotFound("Usuario no encontrado.")
+        payment.bus = buses.findById(request.busId).orNotFound("Bus no encontrado.")
+        payment.amount = request.amount
+        payment.method = request.method
+        payment.status = request.status
+        payment.date = request.date
+        payment.externalReference = request.externalReference
+        return toResponse(payment)
+    }
+
+    @Transactional
     fun reverse(id: UUID, reason: String): PaymentResponse {
         val payment = payments.findById(id).orNotFound("Pago no encontrado.")
         if (payment.status != PaymentStatus.COMPLETED) throw BusinessException("Solo se pueden revertir pagos completados.")
@@ -276,6 +327,15 @@ class PaymentService(
             )
         }
         return toResponse(payment)
+    }
+
+    @Transactional
+    fun delete(id: UUID) {
+        val payment = payments.findById(id).orNotFound("Pago no encontrado.")
+        if (payment.method == PaymentMethod.WALLET || walletTransactions.existsByPaymentId(id)) {
+            throw BusinessException("Los pagos con impacto en billetera no se pueden eliminar. Usa la reversa.")
+        }
+        payments.delete(payment)
     }
 
     fun toResponse(payment: PaymentEntity) = PaymentResponse(
@@ -308,7 +368,8 @@ class PaymentService(
 
 @Service
 class UserService(private val users: UserRepository, private val passwordEncoder: PasswordEncoder) {
-    fun list(search: String?, role: UserRole?, status: OperationalStatus?, pageable: Pageable) = users.search(search, role, status, pageable).toPageResponse(::toResponse)
+    fun list(search: String?, role: UserRole?, status: OperationalStatus?, pageable: Pageable) =
+        users.search(normalizeSearch(search), role, status, pageable).toPageResponse(::toResponse)
     fun get(id: UUID) = toResponse(users.findById(id).orNotFound("Usuario no encontrado."))
     @Transactional fun create(request: UserRequest) = toResponse(users.save(UserEntity(name = request.name, email = request.email, passwordHash = request.password?.let(passwordEncoder::encode), role = request.role, status = request.status)))
     @Transactional fun update(id: UUID, request: UserRequest): UserResponse {
@@ -325,6 +386,11 @@ class UserService(private val users: UserRepository, private val passwordEncoder
     }
     @Transactional fun resetPassword(id: UUID, password: String): UserResponse {
         val user = users.findById(id).orNotFound("Usuario no encontrado."); user.passwordHash = passwordEncoder.encode(password); return toResponse(user)
+    }
+    @Transactional fun delete(id: UUID): UserResponse {
+        val user = users.findById(id).orNotFound("Usuario no encontrado.")
+        user.status = OperationalStatus.INACTIVE
+        return toResponse(user)
     }
     fun toResponse(user: UserEntity) = UserResponse(user.id, user.name, user.email, user.role, user.status)
 }
