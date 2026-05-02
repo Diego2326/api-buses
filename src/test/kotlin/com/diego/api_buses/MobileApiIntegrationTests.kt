@@ -202,6 +202,30 @@ class MobileApiIntegrationTests {
             .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:8081"))
     }
 
+    @Test
+    fun `allows cors preflight for auth login from deployed web admin`() {
+        mockMvc.perform(
+            options("/api/v1/auth/login")
+                .header("Origin", "https://web-admin-buses.vercel.app")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "content-type"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(header().string("Access-Control-Allow-Origin", "https://web-admin-buses.vercel.app"))
+    }
+
+    @Test
+    fun `allows cors preflight for vercel preview domains`() {
+        mockMvc.perform(
+            options("/api/v1/auth/login")
+                .header("Origin", "https://web-admin-buses-git-main-diego.vercel.app")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "content-type"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(header().string("Access-Control-Allow-Origin", "https://web-admin-buses-git-main-diego.vercel.app"))
+    }
+
     private fun registerPassenger(email: String): Pair<String, String> {
         val result = mockMvc.perform(
             post("/api/v1/auth/register")

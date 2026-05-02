@@ -10,6 +10,9 @@ spring:
     enabled: true
 
 app:
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,http://127.0.0.1:8081,https://web-admin-buses.vercel.app
+    allowed-origin-patterns: https://*.vercel.app
   security:
     jwt-secret: test-secret-test-secret-test-secret-test-secret
     jwt-expiration-minutes: 60

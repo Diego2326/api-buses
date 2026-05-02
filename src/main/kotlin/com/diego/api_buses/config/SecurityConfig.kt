@@ -23,6 +23,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 class SecurityConfig(
     @Value("\${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,http://127.0.0.1:8081}")
     private val allowedOrigins: String,
+    @Value("\${app.cors.allowed-origin-patterns:}")
+    private val allowedOriginPatterns: String,
 ) {
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()
@@ -48,6 +50,7 @@ class SecurityConfig(
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration()
         configuration.allowedOrigins = allowedOrigins.split(",").map(String::trim).filter(String::isNotEmpty)
+        configuration.allowedOriginPatterns = allowedOriginPatterns.split(",").map(String::trim).filter(String::isNotEmpty)
         configuration.allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
         configuration.allowedHeaders = listOf("*")
         configuration.maxAge = 3600
