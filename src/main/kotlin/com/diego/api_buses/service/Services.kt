@@ -20,6 +20,7 @@ import com.diego.api_buses.error.NotFoundException
 import com.diego.api_buses.repository.*
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
+import org.springframework.data.jpa.domain.Specification
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -252,7 +253,19 @@ class PaymentService(
     private val buses: BusRepository,
     private val walletTransactions: WalletTransactionRepository,
 ) {
-    fun list(userId: UUID?, busId: UUID?, status: PaymentStatus?, method: PaymentMethod?, dateFrom: Instant?, dateTo: Instant?, pageable: Pageable) = payments.search(userId, busId, status, method, dateFrom, dateTo, pageable).toPageResponse(::toResponse)
+    fun list(userId: UUID?, busId: UUID?, status: PaymentStatus?, method: PaymentMethod?, dateFrom: Instant?, dateTo: Instant?, pageable: Pageable): PageResponse<PaymentResponse> {
+        val spec = Specification<PaymentEntity> { root, _, cb ->
+            val predicates = mutableListOf<jakarta.persistence.criteria.Predicate>()
+            userId?.let { predicates += cb.equal(root.get<UUID>("user").get<UUID>("id"), it) }
+            busId?.let { predicates += cb.equal(root.get<UUID>("bus").get<UUID>("id"), it) }
+            status?.let { predicates += cb.equal(root.get<PaymentStatus>("status"), it) }
+            method?.let { predicates += cb.equal(root.get<PaymentMethod>("method"), it) }
+            dateFrom?.let { predicates += cb.greaterThanOrEqualTo(root.get("date"), it) }
+            dateTo?.let { predicates += cb.lessThanOrEqualTo(root.get("date"), it) }
+            cb.and(*predicates.toTypedArray())
+        }
+        return payments.findAll(spec, pageable).toPageResponse(::toResponse)
+    }
     fun get(id: UUID) = toResponse(payments.findById(id).orNotFound("Pago no encontrado."))
 
     @Transactional
@@ -459,7 +472,17 @@ class DashboardService(private val buses: BusRepository, private val routes: Rou
 class ReportService(private val buses: BusRepository, private val routes: RouteRepository, private val stops: StopRepository, private val routeStops: RouteStopRepository, private val payments: PaymentRepository) {
     fun summary(dateFrom: Instant, dateTo: Instant) = ReportSummaryResponse(buses.countByStatus(OperationalStatus.ACTIVE), routes.count(), stops.count(), payments.countByDateBetween(dateFrom, dateTo), payments.revenueBetween(dateFrom, dateTo))
     fun payments(dateFrom: Instant?, dateTo: Instant?, method: PaymentMethod?, status: PaymentStatus?, pageable: Pageable) =
-        payments.search(null, null, status, method, dateFrom, dateTo, pageable).toPageResponse {
+        payments.findAll(
+            Specification<PaymentEntity> { root, _, cb ->
+                val predicates = mutableListOf<jakarta.persistence.criteria.Predicate>()
+                status?.let { predicates += cb.equal(root.get<PaymentStatus>("status"), it) }
+                method?.let { predicates += cb.equal(root.get<PaymentMethod>("method"), it) }
+                dateFrom?.let { predicates += cb.greaterThanOrEqualTo(root.get("date"), it) }
+                dateTo?.let { predicates += cb.lessThanOrEqualTo(root.get("date"), it) }
+                cb.and(*predicates.toTypedArray())
+            },
+            pageable,
+        ).toPageResponse {
             PaymentResponse(
                 id = it.id,
                 userId = it.user.id,

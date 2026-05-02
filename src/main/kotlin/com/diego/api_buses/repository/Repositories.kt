@@ -13,6 +13,7 @@ import com.diego.api_buses.domain.WalletTransactionEntity
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import java.math.BigDecimal
@@ -90,28 +91,7 @@ interface FareRepository : JpaRepository<FareEntity, UUID> {
     fun search(search: String?, status: OperationalStatus?, pageable: Pageable): Page<FareEntity>
 }
 
-interface PaymentRepository : JpaRepository<PaymentEntity, UUID> {
-    @Query(
-        """
-        select p from PaymentEntity p
-        where (:userId is null or p.user.id = :userId)
-        and (:busId is null or p.bus.id = :busId)
-        and (:status is null or p.status = :status)
-        and (:method is null or p.method = :method)
-        and (:dateFrom is null or p.date >= :dateFrom)
-        and (:dateTo is null or p.date <= :dateTo)
-        """,
-    )
-    fun search(
-        userId: UUID?,
-        busId: UUID?,
-        status: com.diego.api_buses.domain.PaymentStatus?,
-        method: com.diego.api_buses.domain.PaymentMethod?,
-        dateFrom: Instant?,
-        dateTo: Instant?,
-        pageable: Pageable,
-    ): Page<PaymentEntity>
-
+interface PaymentRepository : JpaRepository<PaymentEntity, UUID>, JpaSpecificationExecutor<PaymentEntity> {
     fun countByDateBetween(dateFrom: Instant, dateTo: Instant): Long
 
     @Query("select coalesce(sum(p.amount), 0) from PaymentEntity p where p.status = com.diego.api_buses.domain.PaymentStatus.COMPLETED and p.date between :dateFrom and :dateTo")
