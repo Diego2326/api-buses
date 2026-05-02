@@ -30,7 +30,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/api/v1/auth", "/auth")
 class AuthController(private val auth: AuthService) {
     @Operation(summary = "Iniciar sesion")
     @SecurityRequirements
