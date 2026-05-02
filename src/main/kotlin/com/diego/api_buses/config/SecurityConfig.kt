@@ -26,8 +26,21 @@ class SecurityConfig {
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
                 it.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                    .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-                    .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").authenticated()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout", "/auth/logout").authenticated()
+                    .requestMatchers("/api/v1/auth/me", "/auth/me").authenticated()
+                    .requestMatchers(
+                        "/api/v1/auth/login",
+                        "/api/v1/auth/register",
+                        "/api/v1/auth/login/",
+                        "/api/v1/auth/register/",
+                        "/auth/login",
+                        "/auth/register",
+                        "/auth/login/",
+                        "/auth/register/",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**",
+                    ).permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/v1/payments", "/api/v1/wallet/top-ups").hasAnyRole("ADMIN", "OPERATOR", "PASSENGER")
                     .requestMatchers(HttpMethod.GET, "/api/v1/**").hasAnyRole("ADMIN", "OPERATOR", "INSPECTOR", "PASSENGER")
                     .requestMatchers("/api/v1/**").hasAnyRole("ADMIN", "OPERATOR")
