@@ -3,6 +3,7 @@ package com.diego.api_buses.config
 import com.diego.api_buses.security.AppUserDetailsService
 import com.diego.api_buses.security.JwtAuthenticationFilter
 import com.diego.api_buses.security.JwtService
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
@@ -13,16 +14,25 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
+import org.springframework.web.cors.CorsConfiguration
+import org.springframework.web.cors.CorsConfigurationSource
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 
 @Configuration
 @EnableMethodSecurity
-class SecurityConfig {
+class SecurityConfig(
+    @Value("\${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,http://127.0.0.1:8081}")
+    private val allowedOrigins: String,
+    @Value("\${app.cors.allowed-origin-patterns:}")
+    private val allowedOriginPatterns: String,
+) {
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()
 
     @Bean
     fun securityFilterChain(http: HttpSecurity, jwtService: JwtService, userDetailsService: AppUserDetailsService): SecurityFilterChain =
         http.csrf { it.disable() }
+            .cors { }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
                 it.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -73,4 +83,17 @@ class SecurityConfig {
             }
             .addFilterBefore(JwtAuthenticationFilter(jwtService, userDetailsService), UsernamePasswordAuthenticationFilter::class.java)
             .build()
+
+    @Bean
+    fun corsConfigurationSource(): CorsConfigurationSource {
+        val configuration = CorsConfiguration()
+        configuration.allowedOrigins = allowedOrigins.split(",").map(String::trim).filter(String::isNotEmpty)
+        configuration.allowedOriginPatterns = allowedOriginPatterns.split(",").map(String::trim).filter(String::isNotEmpty)
+        configuration.allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+        configuration.allowedHeaders = listOf("*")
+        configuration.maxAge = 3600
+        val source = UrlBasedCorsConfigurationSource()
+        source.registerCorsConfiguration("/**", configuration)
+        return source
+    }
 }
