@@ -41,9 +41,34 @@ class SecurityConfig {
                         "/swagger-ui.html",
                         "/v3/api-docs/**",
                     ).permitAll()
-                    .requestMatchers(HttpMethod.POST, "/api/v1/payments", "/api/v1/wallet/top-ups").hasAnyRole("ADMIN", "OPERATOR", "PASSENGER")
-                    .requestMatchers(HttpMethod.GET, "/api/v1/**").hasAnyRole("ADMIN", "OPERATOR", "INSPECTOR", "PASSENGER")
-                    .requestMatchers("/api/v1/**").hasAnyRole("ADMIN", "OPERATOR")
+                    .requestMatchers(HttpMethod.POST, "/api/v1/payments", "/api/v1/wallet/top-ups", "/payments", "/wallet/top-ups").hasAnyRole("ADMIN", "OPERATOR", "PASSENGER")
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/v1/**",
+                        "/buses/**",
+                        "/stops/**",
+                        "/routes/**",
+                        "/fares/**",
+                        "/payments/**",
+                        "/users/**",
+                        "/wallet/**",
+                        "/dashboard",
+                        "/operations-map",
+                        "/reports/**",
+                    ).hasAnyRole("ADMIN", "OPERATOR", "INSPECTOR", "PASSENGER")
+                    .requestMatchers(
+                        "/api/v1/**",
+                        "/buses/**",
+                        "/stops/**",
+                        "/routes/**",
+                        "/fares/**",
+                        "/payments/**",
+                        "/users/**",
+                        "/wallet/**",
+                        "/dashboard",
+                        "/operations-map",
+                        "/reports/**",
+                    ).hasAnyRole("ADMIN", "OPERATOR")
                     .anyRequest().authenticated()
             }
             .addFilterBefore(JwtAuthenticationFilter(jwtService, userDetailsService), UsernamePasswordAuthenticationFilter::class.java)

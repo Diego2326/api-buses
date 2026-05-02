@@ -50,7 +50,7 @@ class AuthController(private val auth: AuthService) {
 }
 
 @RestController
-@RequestMapping("/api/v1/buses")
+@RequestMapping("/api/v1/buses", "/buses")
 class BusController(private val service: BusService) {
     @GetMapping fun list(@RequestParam(required = false) search: String?, @RequestParam(required = false) status: OperationalStatus?, @RequestParam(required = false) routeId: UUID?, @PageableDefault(size = 20) pageable: Pageable) = service.list(search, status, routeId, pageable)
     @GetMapping("/by-code/{code}") fun getByCode(@PathVariable code: String) = service.getByCode(code)
@@ -63,7 +63,7 @@ class BusController(private val service: BusService) {
 }
 
 @RestController
-@RequestMapping("/api/v1/stops")
+@RequestMapping("/api/v1/stops", "/stops")
 class StopController(private val service: StopService) {
     @GetMapping fun list(@RequestParam(required = false) search: String?, @RequestParam(required = false) status: OperationalStatus?, @PageableDefault(size = 20) pageable: Pageable) = service.list(search, status, pageable)
     @GetMapping("/{id}") fun get(@PathVariable id: UUID) = service.get(id)
@@ -74,7 +74,7 @@ class StopController(private val service: StopService) {
 }
 
 @RestController
-@RequestMapping("/api/v1/routes")
+@RequestMapping("/api/v1/routes", "/routes")
 class RouteController(private val service: RouteService) {
     @GetMapping fun list(@RequestParam(required = false) search: String?, @RequestParam(required = false) status: OperationalStatus?, @PageableDefault(size = 20) pageable: Pageable) = service.list(search, status, pageable)
     @GetMapping("/{id}") fun get(@PathVariable id: UUID) = service.get(id)
@@ -86,7 +86,7 @@ class RouteController(private val service: RouteService) {
 }
 
 @RestController
-@RequestMapping("/api/v1/fares")
+@RequestMapping("/api/v1/fares", "/fares")
 class FareController(private val service: FareService) {
     @GetMapping fun list(@RequestParam(required = false) search: String?, @RequestParam(required = false) status: OperationalStatus?, @PageableDefault(size = 20) pageable: Pageable) = service.list(search, status, pageable)
     @GetMapping("/{id}") fun get(@PathVariable id: UUID) = service.get(id)
@@ -97,7 +97,7 @@ class FareController(private val service: FareService) {
 }
 
 @RestController
-@RequestMapping("/api/v1/payments")
+@RequestMapping("/api/v1/payments", "/payments")
 class PaymentController(private val service: PaymentService) {
     @GetMapping fun list(@RequestParam(required = false) userId: UUID?, @RequestParam(required = false) busId: UUID?, @RequestParam(required = false) status: PaymentStatus?, @RequestParam(required = false) method: PaymentMethod?, @RequestParam(required = false) dateFrom: Instant?, @RequestParam(required = false) dateTo: Instant?, @PageableDefault(size = 20) pageable: Pageable) = service.list(userId, busId, status, method, dateFrom, dateTo, pageable)
     @GetMapping("/{id}") fun get(@PathVariable id: UUID) = service.get(id)
@@ -108,7 +108,7 @@ class PaymentController(private val service: PaymentService) {
 }
 
 @RestController
-@RequestMapping("/api/v1/users")
+@RequestMapping("/api/v1/users", "/users")
 class UserController(private val service: UserService) {
     @GetMapping fun list(@RequestParam(required = false) search: String?, @RequestParam(required = false) role: UserRole?, @RequestParam(required = false) status: OperationalStatus?, @PageableDefault(size = 20) pageable: Pageable) = service.list(search, role, status, pageable)
     @GetMapping("/{id}") fun get(@PathVariable id: UUID) = service.get(id)
@@ -121,7 +121,7 @@ class UserController(private val service: UserService) {
 }
 
 @RestController
-@RequestMapping("/api/v1/wallet")
+@RequestMapping("/api/v1/wallet", "/wallet")
 class WalletController(private val service: WalletService) {
     @GetMapping fun wallet(@AuthenticationPrincipal principal: UserPrincipal) = service.wallet(principal.user)
     @PostMapping("/top-ups") fun topUp(@AuthenticationPrincipal principal: UserPrincipal, @Valid @RequestBody request: WalletTopUpRequest) = service.topUp(principal.user, request)
@@ -129,7 +129,7 @@ class WalletController(private val service: WalletService) {
 }
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1", "")
 class OperationalController(private val dashboard: DashboardService, private val reports: ReportService) {
     @GetMapping("/dashboard") fun dashboard() = dashboard.dashboard()
     @GetMapping("/operations-map") fun operationsMap() = dashboard.operationsMap()
